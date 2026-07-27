@@ -1,0 +1,7 @@
+.agents/
+.pytest_cache/
+.ua/
+.vscode/
+tests/
+config.yaml
+DEVELOPMENT_PLAN.md
