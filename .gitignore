@@ -5,3 +5,11 @@
 tests/
 config.yaml
 DEVELOPMENT_PLAN.md
+_pycache_/
+__pycache__/
+__pycache__/*
+*.pyc
+*.pyo
+*.pyd
+*.py[cod]
+Apifox测试方案_v1.md
