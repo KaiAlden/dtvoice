@@ -63,6 +63,8 @@ class ToolExecutionContext:
         client_ip: 客户端 IP，可选。
         latitude: 纬度，可选。
         longitude: 经度，可选。
+        constitution: 体质检测结果，可选。
+        device_area: 设备所在地，可选。
     """
 
     session_id: str
@@ -70,6 +72,8 @@ class ToolExecutionContext:
     client_ip: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    constitution: str | None = None
+    device_area: str | None = None
 
 
 class ToolResultAction(str, Enum):

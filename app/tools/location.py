@@ -120,6 +120,12 @@ class GetLocationTool(Tool):
 
         返回推断的城市或客户端提供的坐标信息。
         """
+        if context.device_area and not (
+            context.latitude is not None and context.longitude is not None
+        ):
+            return ToolResult(
+                True, f"当前设备所在地：{context.device_area.strip()}（来源：设备）"
+            )
         location = await self._resolver.resolve(context)
         if location is None:
             return ToolResult(False, "无法从当前请求确定用户所在城市")

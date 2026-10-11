@@ -81,6 +81,10 @@ class WeatherTool(Tool):
         self, context: ToolExecutionContext, arguments: Mapping[str, Any]
     ) -> ToolResult:
         requested_location = str(arguments.get("location") or "").strip()
+        if not requested_location and not (
+            context.latitude is not None and context.longitude is not None
+        ):
+            requested_location = (context.device_area or "").strip()
         target = await self._resolve_target(requested_location, context)
         if target is None or target.latitude is None or target.longitude is None:
             return ToolResult(False, "无法确定查询天气的位置，请提供城市名称或经纬度")

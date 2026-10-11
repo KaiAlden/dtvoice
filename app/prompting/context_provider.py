@@ -87,6 +87,18 @@ class ContextDataProvider:
         *,
         include_weather: bool,
     ) -> tuple[str, str]:
+        if context.device_area and not (
+            context.latitude is not None and context.longitude is not None
+        ):
+            local_address = context.device_area.strip()
+            if not include_weather:
+                return local_address, "未主动查询；天气问题请调用 get_weather"
+            weather = await self._weather_tool.execute(
+                context, {"location": local_address}
+            )
+            return local_address, (
+                weather.content if weather.ok else "天气信息暂不可用"
+            )
         if (
             context.latitude is None
             and context.longitude is None

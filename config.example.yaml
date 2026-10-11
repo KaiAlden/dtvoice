@@ -1,0 +1,25 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+
+llm:
+  default_profile: default
+  profiles:
+    default:
+      base_url: ""
+      api_key: ""
+      model: ""
+
+# 用于聊天历史记录和可选的长期记忆。
+# 建议使用 DTVOICE_MYSQL_PASSWORD 作为密码。
+mysql:
+  host: ""
+  port: 3306
+  user: ""
+  password: ""
+  database: ""
+  pool_size: 5
+  connect_timeout: 10
+
+memory:
+  enabled: false

@@ -33,15 +33,17 @@ class LocationOverride(BaseModel):
 
 
 class ChatStreamRequest(BaseModel):
-    """第二批聊天接口的最小请求体。"""
+    """与 ai_bot 对齐的必填字段和 dtvoice 原有可选能力。"""
 
-    session_id: str | None = Field(default=None, min_length=1, max_length=128)
+    user_id: str = Field(min_length=1, max_length=128)
     device_id: str | None = Field(default=None, min_length=1, max_length=128)
-    message: str = Field(min_length=1, max_length=8_000)
+    prompt: str = Field(min_length=1, max_length=8_000)
     model: str | None = Field(default=None, min_length=1, max_length=64)
     location: LocationOverride | None = None
+    constitution: str | None = Field(default=None, max_length=128)
+    device_area: str | None = Field(default=None, max_length=128)
 
-    @field_validator("session_id", "device_id", "message")
+    @field_validator("user_id", "device_id", "prompt")
     @classmethod
     def reject_blank_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -50,3 +52,10 @@ class ChatStreamRequest(BaseModel):
         if not value:
             raise ValueError("字段不能为空白字符")
         return value
+
+    @field_validator("constitution", "device_area")
+    @classmethod
+    def trim_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None

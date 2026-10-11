@@ -90,11 +90,23 @@ class MemorySettings:
     enabled: bool = False
     provider: str = "long"
     profile: str = ""
-    database_path: str = "data/memory.db"
     prompt_path: str = "prompts/memory-long.txt"
     max_chars: int = 900
     update_every_turns: int = 1   # 每多少轮更新一次长期记忆
     queue_max_size: int = 100   # 队列最大大小
+
+
+@dataclass(frozen=True, slots=True)
+class MySQLSettings:
+    """聊天记录和长期记忆共用的 MySQL 连接配置。"""
+
+    host: str = ""
+    port: int = 3306
+    user: str = ""
+    password: str = ""
+    database: str = ""
+    pool_size: int = 5
+    connect_timeout: int = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +230,7 @@ class Settings:
     prompt: PromptSettings = field(default_factory=PromptSettings)
     context: ContextSettings = field(default_factory=ContextSettings)
     memory: MemorySettings = field(default_factory=MemorySettings)
+    mysql: MySQLSettings = field(default_factory=MySQLSettings)
     session: SessionSettings = field(default_factory=SessionSettings)
     location: LocationSettings = field(default_factory=LocationSettings)
     weather: WeatherSettings = field(default_factory=WeatherSettings)
@@ -278,6 +291,7 @@ def _build_settings(raw: Mapping[str, Any], config_path: Path | None) -> Setting
     prompt = _mapping(raw.get("prompt"), "prompt")
     context = _mapping(raw.get("context"), "context")
     memory = _mapping(raw.get("memory"), "memory")
+    mysql = _mapping(raw.get("mysql"), "mysql")
     session = _mapping(raw.get("session"), "session")
     location = _mapping(raw.get("location"), "location")
     weather = _mapping(raw.get("weather"), "weather")
@@ -376,9 +390,6 @@ def _build_settings(raw: Mapping[str, Any], config_path: Path | None) -> Setting
             enabled=_bool(memory.get("enabled", False), "memory.enabled"),
             provider=_string(memory.get("provider", "long"), "memory.provider"),
             profile=_string(memory.get("profile", ""), "memory.profile"),
-            database_path=_string(
-                memory.get("database_path", "data/memory.db"), "memory.database_path"
-            ),
             prompt_path=_string(
                 memory.get("prompt_path", "prompts/memory-long.txt"),
                 "memory.prompt_path",
@@ -395,6 +406,33 @@ def _build_settings(raw: Mapping[str, Any], config_path: Path | None) -> Setting
                 memory.get("queue_max_size", 100),
                 "memory.queue_max_size",
                 maximum=10_000,
+            ),
+        ),
+        mysql=MySQLSettings(
+            host=_string(
+                os.getenv("DTVOICE_MYSQL_HOST", mysql.get("host", "")), "mysql.host"
+            ),
+            port=_positive_int(
+                os.getenv("DTVOICE_MYSQL_PORT", mysql.get("port", 3306)),
+                "mysql.port",
+                maximum=65535,
+            ),
+            user=_string(
+                os.getenv("DTVOICE_MYSQL_USER", mysql.get("user", "")), "mysql.user"
+            ),
+            password=_string(
+                os.getenv("DTVOICE_MYSQL_PASSWORD", mysql.get("password", "")),
+                "mysql.password",
+            ),
+            database=_string(
+                os.getenv("DTVOICE_MYSQL_DATABASE", mysql.get("database", "")),
+                "mysql.database",
+            ),
+            pool_size=_positive_int(
+                mysql.get("pool_size", 5), "mysql.pool_size", maximum=32
+            ),
+            connect_timeout=_positive_int(
+                mysql.get("connect_timeout", 10), "mysql.connect_timeout", maximum=60
             ),
         ),
         session=_parse_session_settings(session),

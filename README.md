@@ -5,14 +5,14 @@
 ## 运行
 
 ```powershell
-cd D:\yd_project\aibot
+cd D:\project\dtvoice\dtvoice
 py -3.10 -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
 Copy-Item config.example.yaml config.yaml
 .\.venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8080
 ```
 
-在 `config.yaml` 中填写默认模型的 `base_url`、`api_key` 和 `model`。未填写模型配置时，服务仍可启动，但健康状态会显示为 `degraded`。
+在 `config.yaml` 中填写默认模型的 `base_url`、`api_key` 和 `model`。未填写模型配置时，服务仍可启动，但健康状态会显示为 `degraded`。MySQL 是必需依赖：先创建独立的 dtvoice 数据库，再填写 `mysql.host`、`mysql.port`、`mysql.user`、`mysql.database`；密码可通过 `DTVOICE_MYSQL_PASSWORD` 环境变量提供。其他连接项也可用 `DTVOICE_MYSQL_HOST`、`DTVOICE_MYSQL_PORT`、`DTVOICE_MYSQL_USER`、`DTVOICE_MYSQL_DATABASE` 覆盖。启动时自动创建 `chat_history` 和 `memories` 表；账号需要建表权限。
 
 每个模型档案可用统一的 `reasoning.mode: disabled` 表示关闭思考，再用 `reasoning.adapter` 适配实际服务：本地 Qwen/vLLM 使用 `vllm_qwen`，SiliconFlow 使用 `siliconflow`，直连支持 `thinking.type` 的服务使用 `openai_thinking`。必要时可通过 `request_extra_body` 补充供应商字段；关闭思考的适配字段会优先覆盖冲突配置。
 
@@ -24,18 +24,18 @@ Invoke-RestMethod http://127.0.0.1:8080/health
 
 ## 流式聊天
 
-`POST /chatstream` 返回 `text/event-stream`。必须填写 `message`；`session_id`、`device_id` 和 `model` 可选。未提供 `session_id` 时服务端会生成随机 ID，并在 `done` 事件中返回；客户端后续请求携带该 ID 即可继续同一段对话。
+`POST /api/chatstream` 返回 `text/event-stream`。必须填写 `user_id` 和 `prompt`；`device_id`、`model`、`location`、`constitution` 和 `device_area` 可选。相同 `user_id` 在内存会话有效期间沿用短期上下文；调用方应为不同用户提供不同 ID。
 
 ```json
 {
-  "session_id": "user-001",
+  "user_id": "user-001",
   "device_id": "device-001",
-  "message": "讲一个简短的笑话",
+  "prompt": "讲一个简短的笑话",
   "model": "default"
 }
 ```
 
-返回事件包括：`action`（受控动作）、`done`（成功结束）、`error`（模型流式阶段发生错误）。普通回复的 `action` 为 `RESPONSE`。用户明确说“再见”“拜拜”等告别语时，服务端返回 `END_SESSION`，清空已结束会话，并返回 `ended_session_id`；客户端应清空本地保存的会话 ID。用户下一次真正发送消息时不携带 `session_id`，由服务端创建新会话并在 `done` 事件中返回新 ID。公共场所模式下，同一 `session_id` 仅保留当前匿名会话的短期记忆；空闲 15 分钟、显式结束或服务重启后立即清除。
+每个 SSE 帧只包含 `data:`。文字片段为 `{"success":true,"message":"false","data":"回复片段"}`；MySQL 成功提交用户和助手两条记录后，结束帧为 `{"success":true,"message":"true","data":"用户记录ID,助手记录ID"}`。流中失败返回 `{"success":false,"message":"错误说明","data":null}`，且不会发送成功结束帧。请求参数错误在流开始前返回 HTTP 400 JSON。用户明确告别时，服务端仍会清空内存会话，并把告别文本按相同格式输出及保存。公共场所模式下，短期记忆空闲 15 分钟、显式结束或服务重启后清除；MySQL 聊天记录不随内存会话清除。
 
 可主动创建或结束会话：
 
@@ -44,12 +44,14 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8080/sessions
 Invoke-RestMethod -Method Delete http://127.0.0.1:8080/sessions/<session_id>
 ```
 
+`POST /sessions` 返回的随机 `session_id` 可作为新请求的 `user_id`；`DELETE /sessions/{session_id}` 只清除内存上下文，不删除 MySQL 聊天记录。
+
 客户端已知精确坐标时可附带 `location`，它会覆盖 IP 定位：
 
 ```json
 {
-  "session_id": "user-001",
-  "message": "我这里天气如何？",
+  "user_id": "user-001",
+  "prompt": "我这里天气如何？",
   "location": {"latitude": 31.2304, "longitude": 121.4737}
 }
 ```
@@ -71,7 +73,7 @@ Agent 已支持 OpenAI 兼容的流式 Function Calling：聚合工具参数分�
 
 ## 会话短期记忆
 
-- `session_id` 是唯一隔离边界，`device_id` 仅代表公共设备，不能作为用户身份或默认记忆键。
+- `user_id` 是唯一短期会话隔离边界，`device_id` 仅代表公共设备，不能替代用户 ID。
 - 最近 6 轮对话保留原始用户/助手消息，满足连续追问。
 - 原始窗口溢出时，`prompts/session-summary.txt` 才会异步压缩旧消息，摘要只存在进程内，随会话一起删除。
 - `session.idle_ttl_seconds` 默认 900 秒；`session.max_sessions` 限制内存中的匿名会话总数。

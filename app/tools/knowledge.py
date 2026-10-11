@@ -126,8 +126,8 @@ class KnowledgeSearchTool(Tool):
     async def execute(
         self, context: ToolExecutionContext, arguments: Mapping[str, Any]
     ) -> ToolResult:
-        constitution = str(arguments.get("constitution") or "").strip()
-        area = str(arguments.get("area") or "").strip()
+        constitution = str(arguments.get("constitution") or context.constitution or "").strip()
+        area = str(arguments.get("area") or context.device_area or "").strip()
         suggestion_name = str(arguments.get("suggestion_name") or "").strip()
         season = str(arguments.get("season") or "").strip() or current_season()
 

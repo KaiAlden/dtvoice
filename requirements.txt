@@ -5,4 +5,5 @@ openai>=1.0,<3.0
 PyYAML>=6.0,<7.0
 cnlunar>=0.2,<1.0
 pymilvus>=2.5,<3.0
+mysql-connector-python>=9.0,<10.0
 pytest>=8.0,<10.0

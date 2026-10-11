@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from app.llm.base import ChatModel, LLMError
-from app.memory.store import SQLiteMemoryStore
+from app.mysql_store import MySQLStore
 from app.prompting.template import StrictPromptTemplate
 from app.settings import MemorySettings, Settings
 
@@ -29,11 +29,11 @@ class _MemoryJob:
 # 长期记忆服务，负责三维度评估与动态压缩
 class LongMemoryService:
     # 初始化服务，加载配置、模型和数据库
-    def __init__(self, settings: Settings, model: ChatModel) -> None:
+    def __init__(self, settings: Settings, model: ChatModel, store: MySQLStore) -> None:
         self._settings = settings.memory
         self._model = model
         self._profile = self._settings.profile or settings.default_profile
-        self._store = SQLiteMemoryStore(_resolve_path(settings, self._settings.database_path))
+        self._store = store
         prompt_path = _resolve_path(settings, self._settings.prompt_path)
         if not prompt_path.is_file():
             raise ValueError(f"记忆 Prompt 不存在: {prompt_path}")
@@ -47,7 +47,6 @@ class LongMemoryService:
     # 启动内存服务和后台更新工作线程
     async def start(self) -> None:
         self._model.validate_profile(self._profile)
-        await self._store.initialize()
         self._worker = asyncio.create_task(self._run(), name="memory-update-worker")
 
     # 停止服务，刷新待处理任务并等待工作线程完成
@@ -61,7 +60,7 @@ class LongMemoryService:
 
     # 查询指定ID的记忆内容
     async def query(self, memory_id: str) -> str:
-        record = await self._store.get(memory_id)
+        record = await self._store.get_memory(memory_id)
         return record.content if record else ""
 
     # 累积记录会话轮次，达到阈值时触发更新
@@ -103,7 +102,7 @@ class LongMemoryService:
 
     # 执行单个记忆更新：融合新内容并重新评分
     async def _update(self, job: _MemoryJob) -> None:
-        record = await self._store.get(job.memory_id)
+        record = await self._store.get_memory(job.memory_id)
         revision = record.revision if record else 0
         previous = record.content if record else "{}"
         prompt = self._template.render(
@@ -131,7 +130,7 @@ class LongMemoryService:
             if chunk.text:
                 chunks.append(chunk.text)
         normalized = _normalize_memory("".join(chunks), revision + 1, self._settings)
-        if not await self._store.save(job.memory_id, normalized, revision):
+        if not await self._store.save_memory(job.memory_id, normalized, revision):
             logger.warning("记忆版本发生冲突，等待后续轮次重试 memory_id=%s", job.memory_id)
 
 
@@ -215,7 +214,7 @@ def _dump(value: Mapping[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
-# 解析配置路径：绝对路径直接返回，相对路径相对于配置文件所在目录
+# 解析提示词路径：绝对路径直接返回，相对路径相对于配置文件所在目录
 def _resolve_path(settings: Settings, configured: str) -> Path:
     path = Path(configured)
     if path.is_absolute():

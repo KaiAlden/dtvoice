@@ -2,7 +2,6 @@
 .pytest_cache/
 .ua/
 .vscode/
-tests/
 config.yaml
 DEVELOPMENT_PLAN.md
 _pycache_/
@@ -13,3 +12,4 @@ __pycache__/*
 *.pyd
 *.py[cod]
 Apifox测试方案_v1.md
+tests/

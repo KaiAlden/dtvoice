@@ -17,6 +17,7 @@ from app.api import router
 from app.llm.openai_compatible import OpenAICompatibleChatModel
 from app.logging_config import configure_logging
 from app.memory.long import LongMemoryService
+from app.mysql_store import MySQLStore
 from app.prompting.context_provider import ContextDataProvider
 from app.prompting.manager import PromptManager
 from app.runtime import Runtime
@@ -43,8 +44,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         configure_logging(active_settings.log_level)
+        mysql_store = MySQLStore(active_settings.mysql)
+        await mysql_store.initialize()
         runtime = Runtime(active_settings)
         await runtime.start()
+        runtime.set_component_status("mysql", True)
         app.state.runtime = runtime
         sessions = InMemorySessionStore(
             max_turns=active_settings.session.max_turns,
@@ -87,8 +91,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 raise ValueError(
                     f"不支持的记忆 provider: {active_settings.memory.provider}"
                 )
-            memory = LongMemoryService(active_settings, model)
+            memory = LongMemoryService(active_settings, model, mysql_store)
             await memory.start()
+        app.state.mysql_store = mysql_store
         app.state.sessions = sessions
         app.state.tools = tools
         app.state.prompt_manager = prompt_manager
@@ -183,6 +188,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             context_provider,
             memory,
             session_summary,
+            mysql_store,
         )
         # 使用 yield 暂停上下文管理器的执行，允许应用继续运行。
         try:
